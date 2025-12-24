@@ -3,6 +3,9 @@
  * 
  * Extension that enriches PILOT vehicle data with VIN decode information
  * from the auto.dev API.
+ * 
+ * Pattern: Navigation tab + Main panel (Pattern 1)
+ * Layout: Main panel with tbar (top toolbar) and hbox layout with 2 panels
  */
 
 Ext.define('Store.vininsight.Module', {
@@ -10,18 +13,22 @@ Ext.define('Store.vininsight.Module', {
     
     /**
      * Main initialization function called by PILOT
+     * This is a class method as required by the spec
      */
     initModule: function () {
         var me = this;
         
+        console.log('VIN Insight extension initializing...');
+        
         // Create the navigation tab (left panel)
+        // This will be added to skeleton.navigation
         var navTab = Ext.create('Ext.panel.Panel', {
             title: 'VIN Insight',
-            iconCls: 'fa fa-car',
+            iconCls: 'fa fa-car',  // Font Awesome v6 icon as required
             layout: 'fit',
             items: [{
                 xtype: 'treepanel',
-                title:'VIN Insight',
+                 title:'VIN Insight',
                 tools:[{
                             xtype:'button',
                             iconCls: 'fa fa-rotate',
@@ -32,39 +39,51 @@ Ext.define('Store.vininsight.Module', {
                         }],
                 rootVisible: false,
                 useArrows: true,
+                border: false,
+                // Create the tree store that loads vehicle data from PILOT API
                 store: Ext.create('Ext.data.TreeStore', {
                     proxy: {
                         type: 'ajax',
-                        url: '/ax/tree.php',
-                        extraParams: {
-                            vehs: 1,
-                            state: 1
-                        }
+                        url: '/ax/tree.php?vehs=1&state=1'
+                        // No reader needed - uses default tree reader
                     },
                     root: {
-                        text: 'Root',
+                        text: 'Vehicles',
                         expanded: true
-                    }
-                 
+                    },
+                    autoLoad: true
                 }),
+                // Define columns for the tree
                 columns: [{
                     text: 'Vehicle',
-                    xtype:'treecolumn',
                     dataIndex: 'name',
-                    flex: 2
+                    flex: 2,
+                    renderer: function(value) {
+                        return value || 'Unknown';
+                    }
                 }, {
                     text: 'VIN',
                     dataIndex: 'vin',
-                    flex: 2
+                    flex: 2,
+                    renderer: function(value) {
+                        return value || 'Not specified';
+                    }
                 }, {
                     text: 'Model',
                     dataIndex: 'model',
-                    flex: 1
+                    flex: 1,
+                    renderer: function(value) {
+                        return value || 'Unknown';
+                    }
                 }, {
                     text: 'Year',
                     dataIndex: 'year',
-                    flex: 1
+                    flex: 1,
+                    renderer: function(value) {
+                        return value || 'Unknown';
+                    }
                 }],
+                // Handle vehicle selection
                 listeners: {
                     selectionchange: function(tree, selected) {
                         if (selected.length > 0) {
@@ -77,100 +96,89 @@ Ext.define('Store.vininsight.Module', {
         });
         
         // Create the main panel (right content area)
-        var mainPanel = Ext.create('Ext.tab.Panel', {
+        // This will be displayed in the mapframe area
+        var mainPanel = Ext.create('Ext.panel.Panel', {
+            layout: 'vbox',
+            // Top toolbar with API controls
+            tbar: [{
+                xtype: 'tbtext',
+                text: 'API Key:',
+                margin: '0 5 0 0'
+            }, {
+                xtype: 'textfield',
+                name: 'apiKey',
+                width: 250,
+                emptyText: 'Enter auto.dev API key',
+                value: localStorage.getItem('vininsight_apikey') || '',
+                listeners: {
+                    change: function(field, newValue) {
+                        localStorage.setItem('vininsight_apikey', newValue);
+                    }
+                }
+            }, {
+                xtype: 'button',
+                text: 'Save',
+                margin: '0 5 0 0',
+                handler: function() {
+                    var apiKeyField = this.up('toolbar').down('textfield[name=apiKey]');
+                    var apiKey = apiKeyField.getValue();
+                    localStorage.setItem('vininsight_apikey', apiKey);
+                    Ext.Msg.alert('Success', 'API key saved');
+                }
+            }, {
+                xtype: 'button',
+                text: 'Test API',
+                handler: function() {
+                    me.testAPI();
+                }
+            }, '->', {  // Spacer
+                xtype: 'tbtext',
+                text: 'Test VIN: 3GCUDHEL3NG668790',
+                margin: '0 10 0 0'
+            }],
+            // Content area with two panels side by side
             items: [{
-                title: 'Overview',
-                itemId: 'overviewTab',
-                layout: 'fit',
-                items: [{
-                    xtype: 'panel',
-                    padding: 10,
-                    autoScroll: true,
-                    html: '<div id="vin-overview-content"><p>Select a vehicle to see details</p></div>'
-                }]
-            }, {
-                title: 'Raw Decode',
-                itemId: 'rawTab',
-                layout: 'fit',
-                items: [{
-                    xtype: 'panel',
-                    padding: 10,
-                    autoScroll: true,
-                    html: '<div id="vin-raw-content"><p>No VIN decode data available</p></div>'
-                }]
-            }, {
-                title: 'Settings',
-                itemId: 'settingsTab',
-                layout: {
-                    type: 'vbox',
-                    align: 'stretch'
-                },
-                items: [{
-                    xtype: 'form',
-                    padding: 20,
-                    flex: 1,
-                    items: [{
-                        xtype: 'fieldset',
-                        title: 'API Configuration',
-                        padding: 10,
-                        items: [{
-                            xtype: 'textfield',
-                            name: 'apiKey',
-                            fieldLabel: 'API Key',
-                            labelWidth: 100,
-                            width: 400,
-                            allowBlank: true,
-                            emptyText: 'Enter your auto.dev API key',
-                            value: localStorage.getItem('vininsight_apikey') || '',
-                            listeners: {
-                                change: function(field, newValue) {
-                                    localStorage.setItem('vininsight_apikey', newValue);
-                                }
-                            }
-                        }, {
-                            xtype: 'displayfield',
-                            value: '<a href="https://docs.auto.dev/v2/products/vin-decode" target="_blank">Get API key from auto.dev</a>',
-                            fieldStyle: 'color: blue;'
-                        }]
-                    }, {
-                        xtype: 'fieldset',
-                        title: 'API Testing',
-                        padding: 10,
-                        items: [{
-                            xtype: 'button',
-                            text: 'Test API Connection',
-                            margin: '10 0 0 0',
-                            handler: function() {
-                                me.testAPI();
-                            }
-                        }, {
-                            xtype: 'displayfield',
-                            value: 'Uses test VIN: 3GCUDHEL3NG668790',
-                            fieldStyle: 'font-style: italic;'
-                        }]
-                    }],
-                    buttons: [{
-                        text: 'Save',
-                        handler: function() {
-                            var form = this.up('form');
-                            var values = form.getValues();
-                            localStorage.setItem('vininsight_apikey', values.apiKey || '');
-                            Ext.Msg.alert('Success', 'API key saved to localStorage');
-                        }
-                    }, {
-                        text: 'Clear',
-                        handler: function() {
-                            localStorage.removeItem('vininsight_apikey');
-                            var form = this.up('form');
-                            form.getForm().setValues({ apiKey: '' });
-                            Ext.Msg.alert('Cleared', 'API key removed from localStorage');
-                        }
-                    }]
-                }]
+                xtype: 'container',
+                flex: 1,
+                layout: 'hbox',
+                items: [
+                    // Left panel for vehicle data - will be dynamically updated
+                    {
+                        xtype: 'panel',
+                        title: 'Vehicle Information',
+                        flex: 1,
+                        margin: '5 5 5 5',
+                        bodyPadding: 10,
+                        autoScroll: true,
+                        itemId: 'dataPanel',
+                        html: '<div class="vehicle-info">' +
+                              '<h3>Select a vehicle</h3>' +
+                              '<p>Choose a vehicle from the left panel to see details</p>' +
+                              '</div>'
+                    },
+                    // Right panel for raw decode data
+                    {
+                        xtype: 'panel',
+                        title: 'Raw Decode Data',
+                        flex: 1,
+                        margin: '5 5 5 5',
+                        bodyPadding: 10,
+                        autoScroll: true,
+                        itemId: 'rawPanel',
+                        html: '<div class="raw-data">' +
+                              '<h4>JSON Response</h4>' +
+                              '<pre id="raw-data-content">No data available</pre>' +
+                              '</div>'
+                    }
+                ]
             }]
         });
         
-        // Link navigation tab to main panel (CRITICAL RULE)
+        // Store references for later use
+        me.mainPanel = mainPanel;
+        me.navTab = navTab;
+        
+        // Link navigation tab to main panel (CRITICAL RULE for Pattern 1)
         navTab.map_frame = mainPanel;
         
         // Add to PILOT interface
@@ -179,91 +187,126 @@ Ext.define('Store.vininsight.Module', {
     },
     
     /**
-     * Process hierarchical vehicle data from PILOT API
-     */
-    processVehicleData: function(store, records) {
-        var vehicles = [];
-        
-        // Recursively extract vehicles from groups/folders
-        var extractVehicles = function(nodes) {
-            Ext.Array.forEach(nodes, function(node) {
-                if (node.data.children) {
-                    // This is a group/folder - process its children
-                    extractVehicles(node.data.children);
-                } else if (node.data.vehid) {
-                    // This is a vehicle
-                    vehicles.push({
-                        text: node.data.name || 'Unknown',
-                        name: node.data.name || 'Unknown',
-                        vin: node.data.vin || '',
-                        model: node.data.model || '',
-                        year: node.data.year || '',
-                        vehid: node.data.vehid,
-                        leaf: true,
-                        iconCls: 'fa fa-car'
-                    });
-                }
-            });
-        };
-        
-        extractVehicles(records);
-        
-        // Update the tree store with flat vehicle list
-        store.setRoot({
-            text: 'Vehicles',
-            expanded: true,
-            children: vehicles
-        });
-    },
-    
-    /**
      * Handle vehicle selection from tree
      */
     onVehicleSelect: function(record) {
         var me = this;
-        var navTab = skeleton.navigation.items.items.find(function(item) {
-            return item.title === 'VIN Insight';
-        });
         
-        if (!navTab || !navTab.map_frame) return;
+        if (!me.mainPanel) return;
         
-        var mainPanel = navTab.map_frame;
+        // Get vehicle data
+        var vehicleName = record.get('name') || 'Unknown';
+        var vin = record.get('vin') || '';
+        var model = record.get('model') || 'Unknown';
+        var year = record.get('year') || 'Unknown';
         
-        // Update overview tab
-        var overviewTab = mainPanel.getComponent('overviewTab');
-        var overviewContent = overviewTab.down('panel').body.dom.querySelector('#vin-overview-content');
+        // Store current vehicle for later use
+        me.currentVehicle = {
+            name: vehicleName,
+            vin: vin,
+            model: model,
+            year: year,
+            record: record
+        };
         
-        // Basic vehicle info
-        var html = '<div class="vehicle-info">';
-        html += '<h2>' + Ext.util.Format.htmlEncode(record.get('name')) + '</h2>';
-        html += '<p><strong>VIN:</strong> ' + Ext.util.Format.htmlEncode(record.get('vin')) + '</p>';
-        html += '<p><strong>Model:</strong> ' + Ext.util.Format.htmlEncode(record.get('model')) + '</p>';
-        html += '<p><strong>Year:</strong> ' + Ext.util.Format.htmlEncode(record.get('year')) + '</p>';
+        // Update the data panel with proper Ext JS components
+        var dataPanel = me.mainPanel.down('#dataPanel');
+        if (dataPanel) {
+            // Remove existing items and add new ones
+            dataPanel.removeAll();
+            
+            // Add header
+            dataPanel.add({
+                xtype: 'component',
+                html: '<h2>' + Ext.util.Format.htmlEncode(vehicleName) + '</h2>',
+                margin: '0 0 15 0'
+            });
+            
+            // Add vehicle details in a fieldset
+            dataPanel.add({
+                xtype: 'fieldset',
+                title: 'Vehicle Details',
+                margin: '0 0 15 0',
+                defaults: {
+                    xtype: 'displayfield',
+                    labelWidth: 80
+                },
+                items: [{
+                    fieldLabel: 'VIN',
+                    value: vin || 'Not specified'
+                }, {
+                    fieldLabel: 'Model',
+                    value: model
+                }, {
+                    fieldLabel: 'Year',
+                    value: year
+                }]
+            });
+            
+            // Add decode section
+            var decodeFieldset = Ext.create('Ext.form.FieldSet', {
+                title: 'VIN Decode',
+                margin: '0 0 15 0',
+                itemId: 'decodeFieldset',
+                items: [{
+                    xtype: 'container',
+                    layout: 'hbox',
+                    items: [{
+                        xtype: 'component',
+                        html: '<strong>Status:</strong>',
+                        margin: '0 10 0 0'
+                    }, {
+                        xtype: 'component',
+                        html: '<span id="decode-status">Not decoded</span>',
+                        itemId: 'decodeStatus'
+                    }]
+                }]
+            });
+            
+            dataPanel.add(decodeFieldset);
+            
+            // Add decode button if VIN exists
+            if (vin && vin.trim() !== '') {
+                decodeFieldset.add({
+                    xtype: 'button',
+                    text: 'Decode VIN',
+                    margin: '10 0 0 0',
+                    handler: function() {
+                        me.decodeVIN(vin);
+                    }
+                });
+            } else {
+                decodeFieldset.add({
+                    xtype: 'component',
+                    html: '<p style="color: #666; margin: 10px 0;">VIN not specified for this vehicle</p>'
+                });
+            }
+            
+            // Add container for decoded fields (initially hidden)
+            dataPanel.add({
+                xtype: 'fieldset',
+                title: 'Decoded Information',
+                itemId: 'decodedFields',
+                hidden: true,
+                margin: '15 0 0 0',
+                items: [{
+                    xtype: 'container',
+                    itemId: 'decodedContent',
+                    html: 'No decoded data available'
+                }]
+            });
+            
+            dataPanel.doLayout();
+        }
         
-        // Decode status section
-        html += '<div id="decode-status">';
-        html += '<p><strong>Decode Status:</strong> <span id="status-text">Not decoded</span></p>';
-        html += '<button onclick="Ext.ComponentQuery.query(\'Store.vininsight.Module\')[0].decodeVIN(\'' + 
-                Ext.util.Format.htmlEncode(record.get('vin')) + '\')">Decode VIN</button>';
-        html += '</div>';
-        
-        // Decoded fields section (initially hidden)
-        html += '<div id="decoded-fields" style="display:none; margin-top:20px;">';
-        html += '<h3>Decoded Information</h3>';
-        html += '<div id="decoded-content"></div>';
-        html += '</div>';
-        
-        html += '</div>';
-        
-        overviewContent.innerHTML = html;
-        
-        // Clear raw decode tab
-        var rawTab = mainPanel.getComponent('rawTab');
-        var rawContent = rawTab.down('panel').body.dom.querySelector('#vin-raw-content');
-        rawContent.innerHTML = '<p>No VIN decode data available</p>';
-        
-        // Switch to overview tab
-        mainPanel.setActiveTab(overviewTab);
+        // Clear raw data panel
+        var rawPanel = me.mainPanel.down('#rawPanel');
+        if (rawPanel) {
+            rawPanel.update('<div class="raw-data">' +
+                          '<h4>JSON Response</h4>' +
+                          '<pre id="raw-data-content">No data available</pre>' +
+                          '</div>');
+        }
     },
     
     /**
@@ -280,14 +323,17 @@ Ext.define('Store.vininsight.Module', {
         var apiKey = localStorage.getItem('vininsight_apikey');
         if (!apiKey || apiKey.trim() === '') {
             Ext.Msg.alert('API Key Required', 
-                'Please enter your auto.dev API key in the Settings tab first.');
+                'Please enter your auto.dev API key in the top toolbar first.');
             return;
         }
         
         // Update status
-        var statusElement = document.getElementById('status-text');
-        if (statusElement) {
-            statusElement.innerHTML = '<span style="color: orange;">Decoding...</span>';
+        var dataPanel = me.mainPanel.down('#dataPanel');
+        if (dataPanel) {
+            var decodeStatus = dataPanel.down('#decodeStatus');
+            if (decodeStatus) {
+                decodeStatus.update('<span style="color: orange;">Decoding...</span>');
+            }
         }
         
         // Make API call via proxy
@@ -300,12 +346,8 @@ Ext.define('Store.vininsight.Module', {
                 try {
                     var data = Ext.decode(response.responseText);
                     me.displayDecodedData(vin, data);
-                    
-                    if (statusElement) {
-                        statusElement.innerHTML = '<span style="color: green;">Decoded</span>';
-                    }
                 } catch (e) {
-                    me.handleDecodeError('Failed to parse API response');
+                    me.handleDecodeError('Failed to parse API response: ' + e.message);
                 }
             },
             failure: function(response) {
@@ -320,46 +362,54 @@ Ext.define('Store.vininsight.Module', {
     displayDecodedData: function(vin, data) {
         var me = this;
         
-        // Update overview tab with decoded fields
-        var decodedContent = document.getElementById('decoded-content');
-        var decodedFields = document.getElementById('decoded-fields');
-        
-        if (decodedContent && decodedFields) {
-            decodedFields.style.display = 'block';
+        // Update status in data panel
+        var dataPanel = me.mainPanel.down('#dataPanel');
+        if (dataPanel) {
+            var decodeStatus = dataPanel.down('#decodeStatus');
+            if (decodeStatus) {
+                decodeStatus.update('<span style="color: green;">Decoded</span>');
+            }
             
-            var html = '<table class="decoded-table" style="width:100%; border-collapse:collapse;">';
-            html += '<tr><th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Field</th>';
-            html += '<th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Value</th></tr>';
+            // Show decoded fields section
+            var decodedFields = dataPanel.down('#decodedFields');
+            var decodedContent = dataPanel.down('#decodedContent');
             
-            // Add all fields from the response (according to auto.dev documentation)
-            Ext.Object.each(data, function(key, value) {
-                if (value && typeof value !== 'object') {
-                    html += '<tr>';
-                    html += '<td style="padding:8px; border-bottom:1px solid #eee;"><strong>' + 
-                            Ext.util.Format.htmlEncode(key) + '</strong></td>';
-                    html += '<td style="padding:8px; border-bottom:1px solid #eee;">' + 
-                            Ext.util.Format.htmlEncode(value.toString()) + '</td>';
-                    html += '</tr>';
-                }
-            });
-            
-            html += '</table>';
-            decodedContent.innerHTML = html;
+            if (decodedFields && decodedContent) {
+                decodedFields.show();
+                
+                // Create a grid of decoded fields
+                var fieldsHtml = '<table style="width:100%; border-collapse:collapse;">';
+                fieldsHtml += '<tr style="background:#f5f5f5;">';
+                fieldsHtml += '<th style="text-align:left; padding:8px; border:1px solid #ddd;">Field</th>';
+                fieldsHtml += '<th style="text-align:left; padding:8px; border:1px solid #ddd;">Value</th>';
+                fieldsHtml += '</tr>';
+                
+                // Add all fields from the response
+                Ext.Object.each(data, function(key, value) {
+                    if (value && typeof value !== 'object') {
+                        fieldsHtml += '<tr>';
+                        fieldsHtml += '<td style="padding:8px; border:1px solid #eee;"><strong>' + 
+                                Ext.util.Format.htmlEncode(key) + '</strong></td>';
+                        fieldsHtml += '<td style="padding:8px; border:1px solid #eee;">' + 
+                                Ext.util.Format.htmlEncode(value.toString()) + '</td>';
+                        fieldsHtml += '</tr>';
+                    }
+                });
+                
+                fieldsHtml += '</table>';
+                decodedContent.update(fieldsHtml);
+            }
         }
         
-        // Update raw decode tab with pretty JSON
-        var navTab = skeleton.navigation.items.items.find(function(item) {
-            return item.title === 'VIN Insight';
-        });
-        
-        if (navTab && navTab.map_frame) {
-            var mainPanel = navTab.map_frame;
-            var rawTab = mainPanel.getComponent('rawTab');
-            var rawContent = rawTab.down('panel').body.dom.querySelector('#vin-raw-content');
-            
+        // Update raw data panel with pretty JSON
+        var rawPanel = me.mainPanel.down('#rawPanel');
+        if (rawPanel) {
             var prettyJson = JSON.stringify(data, null, 2);
-            rawContent.innerHTML = '<pre style="font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 4px;">' + 
-                                  Ext.util.Format.htmlEncode(prettyJson) + '</pre>';
+            rawPanel.update('<div class="raw-data">' +
+                          '<h4>JSON Response</h4>' +
+                          '<pre id="raw-data-content" style="font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 4px;">' + 
+                          Ext.util.Format.htmlEncode(prettyJson) + '</pre>' +
+                          '</div>');
         }
     },
     
@@ -367,9 +417,15 @@ Ext.define('Store.vininsight.Module', {
      * Handle VIN decode errors
      */
     handleDecodeError: function(errorMessage) {
-        var statusElement = document.getElementById('status-text');
-        if (statusElement) {
-            statusElement.innerHTML = '<span style="color: red;">Error: ' + errorMessage + '</span>';
+        var me = this;
+        
+        // Update status in data panel
+        var dataPanel = me.mainPanel.down('#dataPanel');
+        if (dataPanel) {
+            var decodeStatus = dataPanel.down('#decodeStatus');
+            if (decodeStatus) {
+                decodeStatus.update('<span style="color: red;">Error: ' + Ext.util.Format.htmlEncode(errorMessage) + '</span>');
+            }
         }
         
         Ext.Msg.alert('Decode Error', errorMessage);
