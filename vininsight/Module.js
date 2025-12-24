@@ -297,7 +297,6 @@ Ext.define('Store.vininsight.Module', {
                 }]
             });
             
-            dataPanel.doLayout();
         }
         
         // Clear raw data panel
