@@ -445,10 +445,7 @@ Ext.define('Store.vininsight.Module', {
         Ext.Msg.wait('Testing API connection with sample VIN...', 'Testing');
         
         Ext.Ajax.request({
-            url: '/autodev/vin/' + encodeURIComponent(testVIN),
-            params: {
-                apiKey: apiKey
-            },
+            url: 'autodev/vin/' + encodeURIComponent(testVIN)+'?apiKey='+apiKey,
             success: function(response) {
                 Ext.Msg.hide();
                 try {
