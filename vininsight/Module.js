@@ -339,10 +339,7 @@ Ext.define('Store.vininsight.Module', {
         
         // Make API call via proxy
         Ext.Ajax.request({
-            url: '/autodev/vin/' + encodeURIComponent(vin),
-            params: {
-                apiKey: apiKey
-            },
+            url: 'autodev/vin/' + encodeURIComponent(vin)+'?apiKey='+apiKey,
             success: function(response) {
                 try {
                     var data = Ext.decode(response.responseText);
