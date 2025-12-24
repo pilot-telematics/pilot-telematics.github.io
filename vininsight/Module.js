@@ -99,7 +99,7 @@ Ext.define('Store.vininsight.Module', {
         // Create the main panel (right content area)
         // This will be displayed in the mapframe area
         var mainPanel = Ext.create('Ext.panel.Panel', {
-            layout: 'hbox',
+            layout: 'fit',
             autoscroll:true,
             // Top toolbar with API controls
             tbar: [{
@@ -139,7 +139,7 @@ Ext.define('Store.vininsight.Module', {
                 margin: '0 10 0 0'
             }],
             // Content area with two panels side by side
-            items:  [
+            items:[{xtype:'container',layout:'hbox',items:  [
                     // Left panel for vehicle data - will be dynamically updated
                     {
                         xtype: 'panel',
@@ -169,6 +169,8 @@ Ext.define('Store.vininsight.Module', {
                               '</div>'
                     }
                 ]
+                   }
+                  ]
         });
         
         // Store references for later use
