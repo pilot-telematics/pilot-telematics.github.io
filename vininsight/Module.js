@@ -100,7 +100,7 @@ Ext.define('Store.vininsight.Module', {
         // This will be displayed in the mapframe area
         var mainPanel = Ext.create('Ext.panel.Panel', {
             layout: 'fit',
-            autoscroll:true,
+            autoScroll: true,
             // Top toolbar with API controls
             tbar: [{
                 xtype: 'tbtext',
