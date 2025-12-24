@@ -149,9 +149,7 @@ Ext.define('Store.vininsight.Module', {
                         xtype: 'panel',
                         title: 'Vehicle Information',
                         flex: 1,
-                        margin: '5 5 5 5',
                         bodyPadding: 10,
-                        autoScroll: true,
                         itemId: 'dataPanel',
                         html: '<div class="vehicle-info">' +
                               '<h3>Select a vehicle</h3>' +
@@ -163,9 +161,7 @@ Ext.define('Store.vininsight.Module', {
                         xtype: 'panel',
                         title: 'Raw Decode Data',
                         flex: 1,
-                        margin: '5 5 5 5',
                         bodyPadding: 10,
-                        autoScroll: true,
                         itemId: 'rawPanel',
                         html: '<div class="raw-data">' +
                               '<h4>JSON Response</h4>' +
