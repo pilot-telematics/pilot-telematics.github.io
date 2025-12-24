@@ -56,6 +56,7 @@ Ext.define('Store.vininsight.Module', {
                 // Define columns for the tree
                 columns: [{
                     text: 'Vehicle',
+                    xtype:'treecolumn',
                     dataIndex: 'name',
                     flex: 2,
                     renderer: function(value) {
