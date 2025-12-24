@@ -139,7 +139,11 @@ Ext.define('Store.vininsight.Module', {
                 margin: '0 10 0 0'
             }],
             // Content area with two panels side by side
-            items:[{xtype:'container',layout:'hbox',items:  [
+            items:[{
+                    xtype:'container',
+                    layout:'hbox',
+                    autoScroll: true,
+                    items:  [
                     // Left panel for vehicle data - will be dynamically updated
                     {
                         xtype: 'panel',
