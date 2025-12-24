@@ -30,25 +30,17 @@ Ext.define('Store.vininsight.Module', {
                         extraParams: {
                             vehs: 1,
                             state: 1
-                        },
-                        reader: {
-                            type: 'json',
-                            rootProperty: 'data'
                         }
                     },
                     root: {
                         text: 'Root',
                         expanded: true
-                    },
-                    listeners: {
-                        load: function(store, records) {
-                            // Process the hierarchical data to extract vehicles
-                            me.processVehicleData(store, records);
-                        }
                     }
+                 
                 }),
                 columns: [{
                     text: 'Vehicle',
+                    xtype:'treecolumn',
                     dataIndex: 'name',
                     flex: 2
                 }, {
