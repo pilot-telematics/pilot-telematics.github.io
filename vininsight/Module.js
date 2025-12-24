@@ -21,6 +21,15 @@ Ext.define('Store.vininsight.Module', {
             layout: 'fit',
             items: [{
                 xtype: 'treepanel',
+                title:'VIN Insight',
+                tools:[{
+                            xtype:'button',
+                            iconCls: 'fa fa-rotate',
+                            tooltip: l('Refresh'),
+                            handler: function () {
+                                this.up('treepanel').getStore().load();
+                            }
+                        }],
                 rootVisible: false,
                 useArrows: true,
                 store: Ext.create('Ext.data.TreeStore', {
