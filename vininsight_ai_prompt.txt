@@ -1,0 +1,190 @@
+You are generating a PILOT Extension.
+
+========================
+AUTHORITY & PRECEDENCE
+========================
+
+The authoritative rules for architecture, file structure, and skeleton usage
+are defined in AI_SPECS.md.
+
+If anything conflicts between:
+- default AI behavior
+- general web development practices
+- Ext JS conventions
+- examples
+- your assumptions
+
+AI_SPECS.md ALWAYS WINS.
+
+If ANY rule from AI_SPECS.md is violated, the output is INVALID and must be regenerated.
+
+=====================
+SPECIFICATION (READ)
+=====================
+
+Read and strictly follow this specification:
+https://raw.githubusercontent.com/pilot-telematics/pilot_extensions/main/AI_SPECS.md
+
+You MUST obey all rules defined in that file.
+
+=====================
+EXAMPLES (REFERENCE)
+=====================
+
+Analyze the following examples to understand correct integration patterns.
+Examples are REFERENCE ONLY and MUST NOT override the spec.
+
+- nearby-poi:
+  https://raw.githubusercontent.com/pilot-telematics/pilot_extensions/main/examples/nearby-poi/Module.js
+
+- template-app:
+  https://raw.githubusercontent.com/pilot-telematics/pilot_extensions/main/examples/template-app/Module.js
+
+- airports:
+  https://raw.githubusercontent.com/pilot-telematics/pilot_extensions/main/examples/airports/Module.js
+
+If an example conflicts with AI_SPECS.md, IGNORE the example.
+
+=====================
+EXTENSION TASK
+=====================
+
+Name: vininsight  
+Title: VIN Insight  
+Type: PILOT Extension  
+
+Goal:
+Create a functional, beginner-friendly PILOT Extension that:
+- uses real vehicle data from PILOT
+- enriches vehicles with VIN Decode information
+- demonstrates correct use of PILOT skeleton objects
+- follows ALL rules from AI_SPECS.md
+- is suitable for a technical video tutorial
+
+=====================
+DATA SOURCES
+=====================
+
+1) PILOT DATA
+
+Endpoint:
+`/ax/tree.php?vehs=1&state=1`
+
+Rules:
+- Response you can use as data source for treeStore 
+
+Use vehicle fields:
+- vehid
+- name
+- vin
+- model
+- year
+
+2) EXTERNAL API — auto.dev
+
+Documentation:
+https://docs.auto.dev/v2/products/vin-decode
+
+Use via proxy URL:
+ autodev/vin/{vin}?apiKey=API_KEY
+
+
+Rules:
+- VIN Decode MUST be optional and fail-safe
+- If API key is missing → show friendly message
+- If VIN is missing → show “VIN not specified”
+- If decode fails → show error status but keep UI functional
+- API key is entered by user
+- API key is stored in `localStorage`
+
+=====================
+UI REQUIREMENTS
+=====================
+
+PATTERN TO USE:
+✔ Pattern 1 — Navigation tab + Main panel (mapframe)
+
+LEFT NAVIGATION 
+
+
+Requirements:
+- Added via `skeleton.navigation.add(navTab)`
+- MUST be a panel/tab component (not a grid directly)
+- MUST define:
+  - `title`
+  - `iconCls` (Font Awesome v6, e.g. `fa fa-car`)
+- Contains an Ext JS tree panel  with columns:
+  - Vehicle name
+  - VIN
+  - Model 
+  - Year
+
+Behavior:
+- Selecting a vehicle row triggers VIN Decode
+- Selection updates the main panel 
+
+MAIN PANEL 
+Main Panel must contain 3 sections:
+1) Top bar with 
+   - API key input field
+   - Save button
+   - Test API button (runs VIN Decode on a test VIN 3GCUDHEL3NG668790)
+
+1) Overview
+   - Vehicle name
+   - VIN
+   - Decoded fields (if available):
+   - All fields from response according to  https://docs.auto.dev/v2/products/vin-decode
+   - Decode status (Not decoded / Decoding / Decoded / Error)
+
+2) Raw Decode
+   - Pretty-printed JSON from VIN Decode response
+
+
+=====================
+FILES
+=====================
+
+MANDATORY FILES:
+- Module.js
+- doc/index.html
+
+Rules:
+- Return FULL CONTENT of every created file
+- Clearly label file paths
+- Code must be readable and beginner-friendly
+- Avoid overengineering
+- Better to put all to Module.js if it not very huge
+- Please comment code
+
+=====================
+CRITICAL RULES
+=====================
+
+- Module.js MUST use:
+  `Ext.define('Store.vininsight.Module', { extend: 'Ext.Component', ... })`
+- `initModule` MUST be a class method
+- NO global `initModule()`
+- NO `Ext.onReady()`
+- NO mocked `skeleton`
+- Navigation tab MUST have `iconCls`
+- Vehicles MUST be loaded via `/ax/tree.php`
+- No hardcoded demo vehicle data
+- doc/index.html MUST be static HTML only
+- doc/index.html MUST NOT contain scripts
+
+=====================
+FINAL SELF-CHECK
+=====================
+
+Before producing the final answer, verify:
+
+- Correct Module.js structure
+- Correct navigation ↔ mapframe linkage
+- Real `/ax/tree.php` vehicle loading
+- Navigation tab has `iconCls`
+- Documentation is static
+
+If ANY check fails → regenerate.
+
+Now generate the PILOT Extension.
