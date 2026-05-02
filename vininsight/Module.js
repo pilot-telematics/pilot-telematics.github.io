@@ -1,472 +1,314 @@
 /**
- * VIN Insight - PILOT Extension
- * 
- * Extension that enriches PILOT vehicle data with VIN decode information
- * from the auto.dev API.
- * 
- * Pattern: Navigation tab + Main panel (Pattern 1)
- * Layout: Main panel with tbar (top toolbar) and hbox layout with 2 panels
+ * Transport Monitoring Module - PILOT Extension
+ * Мониторинг температурного режима транспортных средств с рефрижераторами
+ *
+ * Интеграция Flask backend с Pilot-GPS интерфейсом через Pilot Extensions
  */
 
-Ext.define('Store.vininsight.Module', {
+Ext.define('Store.transport-monitoring.Module', {
     extend: 'Ext.Component',
-    
+
     /**
-     * Main initialization function called by PILOT
-     * This is a class method as required by the spec
+     * Главная функция инициализации модуля
+     * Вызывается автоматически при загрузке расширения в Pilot
      */
     initModule: function () {
-        var me = this;
-        
-        console.log('VIN Insight extension initializing...');
-        
-        // Create the navigation tab (left panel)
-        // This will be added to skeleton.navigation
-        var navTab = Ext.create('Ext.panel.Panel', {
-            title: 'VIN Insight',
-            iconCls: 'fa fa-car',  // Font Awesome v6 icon as required
-            layout: 'fit',
-            items: [{
-                xtype: 'treepanel',
-                 title:'VIN Insight',
-                tools:[{
-                            xtype:'button',
-                            iconCls: 'fa fa-rotate',
-                            tooltip: l('Refresh'),
-                            handler: function () {
-                                this.up('treepanel').getStore().load();
-                            }
-                        }],
-                rootVisible: false,
-                useArrows: true,
-                border: false,
-                // Create the tree store that loads vehicle data from PILOT API
-                store: Ext.create('Ext.data.TreeStore', {
-                    proxy: {
-                        type: 'ajax',
-                        url: '/ax/tree.php?vehs=1&state=1'
-                        // No reader needed - uses default tree reader
-                    },
-                    root: {
-                        text: 'Vehicles',
-                        expanded: true
-                    },
-                    autoLoad: true
-                }),
-                // Define columns for the tree
-                columns: [{
-                    text: 'Vehicle',
-                    xtype:'treecolumn',
-                    dataIndex: 'name',
-                    flex: 2,
-                    renderer: function(value) {
-                        return value || 'Unknown';
-                    }
-                }, {
-                    text: 'VIN',
-                    dataIndex: 'vin',
-                    flex: 2,
-                    renderer: function(value) {
-                        return value || 'Not specified';
-                    }
-                }, {
-                    text: 'Model',
-                    dataIndex: 'model',
-                    flex: 1,
-                    renderer: function(value) {
-                        return value || 'Unknown';
-                    }
-                }, {
-                    text: 'Year',
-                    dataIndex: 'year',
-                    flex: 1,
-                    renderer: function(value) {
-                        return value || 'Unknown';
-                    }
-                }],
-                // Handle vehicle selection
-                listeners: {
-                    selectionchange: function(tree, selected) {
-                        if (selected.length > 0) {
-                            var record = selected[0];
-                            me.onVehicleSelect(record);
-                        }
-                    }
-                }
-            }]
+        console.log('🚛 Transport Monitoring Module initialized');
+
+        // 1. СОЗДАЕМ НАВИГАЦИОННУЮ ВКЛАДКУ
+        var navTab = Ext.create('Store.transport-monitoring.Tab', {
+            title: 'Мониторинг',
+            iconCls: 'fa fa-truck',  // FontAwesome иконка грузовика
+            tooltip: 'Мониторинг температурного режима транспорта'
         });
-        
-        // Create the main panel (right content area)
-        // This will be displayed in the mapframe area
-        var mainPanel = Ext.create('Ext.panel.Panel', {
-            layout: 'fit',
-            autoScroll: true,
-            // Top toolbar with API controls
-            tbar: [{
-                xtype: 'tbtext',
-                text: 'API Key:',
-                margin: '0 5 0 0'
-            }, {
-                xtype: 'textfield',
-                name: 'apiKey',
-                width: 250,
-                emptyText: 'Enter auto.dev API key',
-                value: localStorage.getItem('vininsight_apikey') || '',
-                listeners: {
-                    change: function(field, newValue) {
-                        localStorage.setItem('vininsight_apikey', newValue);
-                    }
-                }
-            }, {
-                xtype: 'button',
-                text: 'Save',
-                margin: '0 5 0 0',
-                handler: function() {
-                    var apiKeyField = this.up('toolbar').down('textfield[name=apiKey]');
-                    var apiKey = apiKeyField.getValue();
-                    localStorage.setItem('vininsight_apikey', apiKey);
-                    Ext.Msg.alert('Success', 'API key saved');
-                }
-            }, {
-                xtype: 'button',
-                text: 'Test API',
-                handler: function() {
-                    me.testAPI();
-                }
-            }, '->', {  // Spacer
-                xtype: 'tbtext',
-                text: 'Test VIN: 3GCUDHEL3NG668790',
-                margin: '0 10 0 0'
-            }],
-            // Content area with two panels side by side
-            items:[{
-                    xtype:'container',
-                    layout:'hbox',
-                    autoScroll: true,
-                    items:  [
-                    // Left panel for vehicle data - will be dynamically updated
-                    {
-                        xtype: 'panel',
-                        title: 'Vehicle Information',
-                        flex: 1,
-                        bodyPadding: 10,
-                        itemId: 'dataPanel',
-                        html: '<div class="vehicle-info">' +
-                              '<h3>Select a vehicle</h3>' +
-                              '<p>Choose a vehicle from the left panel to see details</p>' +
-                              '</div>'
-                    },
-                    // Right panel for raw decode data
-                    {
-                        xtype: 'panel',
-                        title: 'Raw Decode Data',
-                        flex: 1,
-                        bodyPadding: 10,
-                        itemId: 'rawPanel',
-                        html: '<div class="raw-data">' +
-                              '<h4>JSON Response</h4>' +
-                              '<pre id="raw-data-content">No data available</pre>' +
-                              '</div>'
-                    }
-                ]
-                   }
-                  ]
+
+        // 2. СОЗДАЕМ ГЛАВНУЮ ПАНЕЛЬ ДАШБОРДА
+        var dashboardPanel = Ext.create('Store.transport-monitoring.DashboardPanel', {
+            title: 'Общая сводка',
+            iconCls: 'fa fa-chart-line'
         });
-        
-        // Store references for later use
-        me.mainPanel = mainPanel;
-        me.navTab = navTab;
-        
-        // Link navigation tab to main panel (CRITICAL RULE for Pattern 1)
-        navTab.map_frame = mainPanel;
-        
-        // Add to PILOT interface
-        skeleton.navigation.add(navTab);
-        skeleton.mapframe.add(mainPanel);
+
+        // 3. СОЗДАЕМ ПАНЕЛЬ ТРАНСПОРТНЫХ СРЕДСТВ
+        var vehiclesPanel = Ext.create('Store.transport-monitoring.VehiclesPanel', {
+            title: 'По ТС',
+            iconCls: 'fa fa-truck-moving'
+        });
+
+        // 4. СОЗДАЕМ ПАНЕЛЬ КОНТРАГЕНТОВ
+        var contractorsPanel = Ext.create('Store.transport-monitoring.ContractorsPanel', {
+            title: 'По контрагентам',
+            iconCls: 'fa fa-building'
+        });
+
+        // 5. СВЯЗЫВАЕМ КОМПОНЕНТЫ
+        // Навигационная вкладка содержит ссылки на все панели
+        navTab.map_frame = dashboardPanel;  // Панель по умолчанию
+        navTab.vehiclesPanel = vehiclesPanel;
+        navTab.contractorsPanel = contractorsPanel;
+
+        // 6. ДОБАВЛЯЕМ КОМПОНЕНТЫ В ИНТЕРФЕЙС PILOT
+        skeleton.navigation.add(navTab);           // Вкладка в левую навигацию
+        skeleton.mapframe.add(dashboardPanel);    // Главная панель в основную область
+        skeleton.mapframe.add(vehiclesPanel);     // Панель ТС в основную область
+        skeleton.mapframe.add(contractorsPanel);  // Панель контрагентов в основную область
+
+        // 7. ЗАГРУЖАЕМ СТИЛИ
+        this.loadStyles();
+
+        // 8. ЗАГРУЖАЕМ КОНФИГУРАЦИЮ
+        this.loadConfig();
+
+        // 9. ЗАПУСКАЕМ ПЕРИОДИЧЕСКОЕ ОБНОВЛЕНИЕ ДАННЫХ
+        this.startDataRefresh();
+
+        console.log('✅ Transport Monitoring Module loaded successfully!');
     },
-    
+
     /**
-     * Handle vehicle selection from tree
+     * Загрузка пользовательских CSS стилей
      */
-    onVehicleSelect: function(record) {
-        var me = this;
-        
-        if (!me.mainPanel) return;
-        
-        // Get vehicle data
-        var vehicleName = record.get('name') || 'Unknown';
-        var vin = record.get('vin') || '';
-        var model = record.get('model') || 'Unknown';
-        var year = record.get('year') || 'Unknown';
-        
-        // Store current vehicle for later use
-        me.currentVehicle = {
-            name: vehicleName,
-            vin: vin,
-            model: model,
-            year: year,
-            record: record
+    loadStyles: function () {
+        var cssLink = document.createElement("link");
+        cssLink.setAttribute("rel", "stylesheet");
+        cssLink.setAttribute("type", "text/css");
+        cssLink.setAttribute("href", '/store/transport-monitoring/style.css');
+        document.head.appendChild(cssLink);
+    },
+
+    /**
+     * Загрузка конфигурации из JSON файла
+     */
+    loadConfig: function () {
+        Ext.Ajax.request({
+            url: '/store/transport-monitoring/config.json',
+            method: 'GET',
+            success: function(response) {
+                var config = Ext.JSON.decode(response.responseText);
+                console.log('📋 Application config loaded:', config);
+
+                // Сохраняем конфигурацию в глобальном объекте
+                Store.transportMonitorConfig = config;
+
+                // Применяем настройки
+                if (config.settings && config.settings.refreshInterval) {
+                    Store.transportMonitorConfig.refreshInterval = config.settings.refreshInterval;
+                }
+            },
+            failure: function() {
+                console.warn('⚠️ Could not load configuration file, using defaults');
+                // Устанавливаем значения по умолчанию
+                Store.transportMonitorConfig = {
+                    appName: 'Transport Monitoring',
+                    version: '1.0.0',
+                    settings: {
+                        refreshInterval: 60000,  // 1 минута по умолчанию
+                        apiBaseUrl: '/api'
+                    }
+                };
+            }
+        });
+    },
+
+    /**
+     * Запуск периодического обновления данных
+     */
+    startDataRefresh: function () {
+        var refreshInterval = Store.transportMonitorConfig ?
+            Store.transportMonitorConfig.settings.refreshInterval : 60000;
+
+        console.log('🔄 Starting data refresh with interval:', refreshInterval, 'ms');
+
+        // Запускаем обновление сразу
+        this.refreshAllData();
+
+        // Устанавливаем периодическое обновление
+        this.refreshTimer = Ext.TaskManager.start({
+            run: this.refreshAllData,
+            interval: refreshInterval,
+            scope: this
+        });
+    },
+
+    /**
+     * Обновление всех данных дашборда
+     */
+    refreshAllData: function () {
+        console.log('🔄 Refreshing dashboard data...');
+
+        // Обновляем главную панель дашборда
+        var dashboardPanel = Ext.getCmp('transport-dashboard-panel');
+        if (dashboardPanel && dashboardPanel.loadData) {
+            dashboardPanel.loadData();
+        }
+
+        // Обновляем панель транспортных средств
+        var vehiclesPanel = Ext.getCmp('transport-vehicles-panel');
+        if (vehiclesPanel && vehiclesPanel.loadData) {
+            vehiclesPanel.loadData();
+        }
+
+        // Обновляем панель контрагентов
+        var contractorsPanel = Ext.getCmp('transport-contractors-panel');
+        if (contractorsPanel && contractorsPanel.loadData) {
+            contractorsPanel.loadData();
+        }
+    },
+
+    /**
+     * Остановка периодического обновления
+     */
+    stopDataRefresh: function () {
+        if (this.refreshTimer) {
+            Ext.TaskManager.stop(this.refreshTimer);
+            console.log('⏹️ Data refresh stopped');
+        }
+    },
+
+    /**
+     * Получение данных из Flask backend
+     * @param {string} endpoint - API endpoint
+     * @param {function} callback - Callback функция для обработки данных
+     * @param {function} errorCallback - Callback функция для обработки ошибок
+     */
+    getApiData: function (endpoint, callback, errorCallback) {
+        var apiBaseUrl = Store.transportMonitorConfig ?
+            Store.transportMonitorConfig.settings.apiBaseUrl : '/api';
+
+        Ext.Ajax.request({
+            url: apiBaseUrl + endpoint,
+            method: 'GET',
+            success: function(response) {
+                try {
+                    var data = Ext.JSON.decode(response.responseText);
+                    if (callback) callback(data);
+                } catch (e) {
+                    console.error('❌ Error parsing API response:', e);
+                    if (errorCallback) errorCallback(e);
+                }
+            },
+            failure: function(response) {
+                console.error('❌ API request failed:', response.status, response.statusText);
+                if (errorCallback) errorCallback(response);
+            }
+        });
+    },
+
+    /**
+     * Отправка данных во Flask backend
+     * @param {string} endpoint - API endpoint
+     * @param {object} data - Данные для отправки
+     * @param {function} callback - Callback функция для обработки ответа
+     * @param {function} errorCallback - Callback функция для обработки ошибок
+     */
+    postApiData: function (endpoint, data, callback, errorCallback) {
+        var apiBaseUrl = Store.transportMonitorConfig ?
+            Store.transportMonitorConfig.settings.apiBaseUrl : '/api';
+
+        Ext.Ajax.request({
+            url: apiBaseUrl + endpoint,
+            method: 'POST',
+            jsonData: data,
+            success: function(response) {
+                try {
+                    var responseData = Ext.JSON.decode(response.responseText);
+                    if (callback) callback(responseData);
+                } catch (e) {
+                    console.error('❌ Error parsing API response:', e);
+                    if (errorCallback) errorCallback(e);
+                }
+            },
+            failure: function(response) {
+                console.error('❌ API request failed:', response.status, response.statusText);
+                if (errorCallback) errorCallback(response);
+            }
+        });
+    },
+
+    /**
+     * Показ уведомления пользователю
+     * @param {string} title - Заголовок уведомления
+     * @param {string} message - Текст уведомления
+     * @param {string} icon - Иконка (info, warning, error, success)
+     */
+    showNotification: function (title, message, icon) {
+        icon = icon || 'info';
+
+        Ext.Msg.show({
+            title: title,
+            message: message,
+            icon: icon,
+            buttons: Ext.Msg.OK
+        });
+    },
+
+    /**
+     * Форматирование даты и времени
+     * @param {string} dateString - Дата в формате ISO
+     * @param {string} format - Формат даты (по умолчанию 'd.m.Y H:i')
+     * @return {string} Отформатированная дата
+     */
+    formatDate: function (dateString, format) {
+        format = format || 'd.m.Y H:i';
+        try {
+            var date = Ext.Date.parse(dateString, 'Y-m-d\\TH:i:s');
+            return Ext.Date.format(date, format);
+        } catch (e) {
+            console.error('❌ Error formatting date:', dateString, e);
+            return dateString;
+        }
+    },
+
+    /**
+     * Форматирование температуры
+     * @param {number} temp - Температура
+     * @return {string} Отформатированная температура
+     */
+    formatTemperature: function (temp) {
+        if (temp === null || temp === undefined) {
+            return 'N/A';
+        }
+        return temp.toFixed(1) + '°C';
+    },
+
+    /**
+     * Получение цвета статуса температуры
+     * @param {string} status - Статус (normal, low, high, range)
+     * @return {string} CSS цвет
+     */
+    getStatusColor: function (status) {
+        var colors = {
+            'normal': '#28a745',    // Зеленый
+            'low': '#17a2b8',       // Голубой
+            'high': '#dc3545',      // Красный
+            'range': '#ffc107'      // Желтый
         };
-        
-        // Update the data panel with proper Ext JS components
-        var dataPanel = me.mainPanel.down('#dataPanel');
-        if (dataPanel) {
-            // Remove existing items and add new ones
-            dataPanel.removeAll();
-            
-            // Add header
-            dataPanel.add({
-                xtype: 'component',
-                html: '<h2>' + Ext.util.Format.htmlEncode(vehicleName) + '</h2>',
-                margin: '0 0 15 0'
-            });
-            
-            // Add vehicle details in a fieldset
-            dataPanel.add({
-                xtype: 'fieldset',
-                title: 'Vehicle Details',
-                margin: '0 0 15 0',
-                defaults: {
-                    xtype: 'displayfield',
-                    labelWidth: 80
-                },
-                items: [{
-                    fieldLabel: 'VIN',
-                    value: vin || 'Not specified'
-                }, {
-                    fieldLabel: 'Model',
-                    value: model
-                }, {
-                    fieldLabel: 'Year',
-                    value: year
-                }]
-            });
-            
-            // Add decode section
-            var decodeFieldset = Ext.create('Ext.form.FieldSet', {
-                title: 'VIN Decode',
-                margin: '0 0 15 0',
-                itemId: 'decodeFieldset',
-                items: [{
-                    xtype: 'container',
-                    layout: 'hbox',
-                    items: [{
-                        xtype: 'component',
-                        html: '<strong>Status:</strong>',
-                        margin: '0 10 0 0'
-                    }, {
-                        xtype: 'component',
-                        html: '<span id="decode-status">Not decoded</span>',
-                        itemId: 'decodeStatus'
-                    }]
-                }]
-            });
-            
-            dataPanel.add(decodeFieldset);
-            
-            // Add decode button if VIN exists
-            if (vin && vin.trim() !== '') {
-                decodeFieldset.add({
-                    xtype: 'button',
-                    text: 'Decode VIN',
-                    margin: '10 0 0 0',
-                    handler: function() {
-                        me.decodeVIN(vin);
-                    }
-                });
-            } else {
-                decodeFieldset.add({
-                    xtype: 'component',
-                    html: '<p style="color: #666; margin: 10px 0;">VIN not specified for this vehicle</p>'
-                });
-            }
-            
-            // Add container for decoded fields (initially hidden)
-            dataPanel.add({
-                xtype: 'fieldset',
-                title: 'Decoded Information',
-                itemId: 'decodedFields',
-                hidden: true,
-                margin: '15 0 0 0',
-                items: [{
-                    xtype: 'container',
-                    itemId: 'decodedContent',
-                    html: 'No decoded data available'
-                }]
-            });
-            
-        }
-        
-        // Clear raw data panel
-        var rawPanel = me.mainPanel.down('#rawPanel');
-        if (rawPanel) {
-            rawPanel.update('<div class="raw-data">' +
-                          '<h4>JSON Response</h4>' +
-                          '<pre id="raw-data-content">No data available</pre>' +
-                          '</div>');
-        }
+        return colors[status] || '#6c757d'; // Серый по умолчанию
     },
-    
+
     /**
-     * Decode VIN using auto.dev API
+     * Получение текстового описания статуса
+     * @param {string} status - Статус
+     * @return {string} Текстовое описание
      */
-    decodeVIN: function(vin) {
-        var me = this;
-        
-        if (!vin || vin.trim() === '') {
-            Ext.Msg.alert('Error', 'VIN not specified');
-            return;
-        }
-        
-        var apiKey = localStorage.getItem('vininsight_apikey');
-        if (!apiKey || apiKey.trim() === '') {
-            Ext.Msg.alert('API Key Required', 
-                'Please enter your auto.dev API key in the top toolbar first.');
-            return;
-        }
-        
-        // Update status
-        var dataPanel = me.mainPanel.down('#dataPanel');
-        if (dataPanel) {
-            var decodeStatus = dataPanel.down('#decodeStatus');
-            if (decodeStatus) {
-                decodeStatus.update('<span style="color: orange;">Decoding...</span>');
-            }
-        }
-        
-        // Make API call via proxy
-        Ext.Ajax.request({
-            url: 'autodev/vin/' + encodeURIComponent(vin)+'?apiKey='+apiKey,
-            success: function(response) {
-                try {
-                    var data = Ext.decode(response.responseText);
-                    me.displayDecodedData(vin, data);
-                } catch (e) {
-                    me.handleDecodeError('Failed to parse API response: ' + e.message);
-                }
-            },
-            failure: function(response) {
-                me.handleDecodeError('API request failed: ' + (response.statusText || 'Unknown error'));
-            }
-        });
+    getStatusText: function (status) {
+        var texts = {
+            'normal': 'Норма',
+            'low': 'Ниже нормы',
+            'high': 'Выше нормы',
+            'range': 'В диапазоне'
+        };
+        return texts[status] || status;
     },
-    
+
     /**
-     * Display decoded VIN data
+     * Деструктор модуля
+     * Вызывается при выгрузке расширения
      */
-    displayDecodedData: function(vin, data) {
-        var me = this;
-        
-        // Update status in data panel
-        var dataPanel = me.mainPanel.down('#dataPanel');
-        if (dataPanel) {
-            var decodeStatus = dataPanel.down('#decodeStatus');
-            if (decodeStatus) {
-                decodeStatus.update('<span style="color: green;">Decoded</span>');
-            }
-            
-            // Show decoded fields section
-            var decodedFields = dataPanel.down('#decodedFields');
-            var decodedContent = dataPanel.down('#decodedContent');
-            
-            if (decodedFields && decodedContent) {
-                decodedFields.show();
-                
-                // Create a grid of decoded fields
-                var fieldsHtml = '<table style="width:100%; border-collapse:collapse;">';
-                fieldsHtml += '<tr style="background:#f5f5f5;">';
-                fieldsHtml += '<th style="text-align:left; padding:8px; border:1px solid #ddd;">Field</th>';
-                fieldsHtml += '<th style="text-align:left; padding:8px; border:1px solid #ddd;">Value</th>';
-                fieldsHtml += '</tr>';
-                
-                // Add all fields from the response
-                Ext.Object.each(data, function(key, value) {
-                    if (value && typeof value !== 'object') {
-                        fieldsHtml += '<tr>';
-                        fieldsHtml += '<td style="padding:8px; border:1px solid #eee;"><strong>' + 
-                                Ext.util.Format.htmlEncode(key) + '</strong></td>';
-                        fieldsHtml += '<td style="padding:8px; border:1px solid #eee;">' + 
-                                Ext.util.Format.htmlEncode(value.toString()) + '</td>';
-                        fieldsHtml += '</tr>';
-                    }
-                });
-                
-                fieldsHtml += '</table>';
-                decodedContent.update(fieldsHtml);
-            }
-        }
-        
-        // Update raw data panel with pretty JSON
-        var rawPanel = me.mainPanel.down('#rawPanel');
-        if (rawPanel) {
-            var prettyJson = JSON.stringify(data, null, 2);
-            rawPanel.update('<div class="raw-data">' +
-                          '<h4>JSON Response</h4>' +
-                          '<pre id="raw-data-content" style="font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 4px;">' + 
-                          Ext.util.Format.htmlEncode(prettyJson) + '</pre>' +
-                          '</div>');
-        }
-    },
-    
-    /**
-     * Handle VIN decode errors
-     */
-    handleDecodeError: function(errorMessage) {
-        var me = this;
-        
-        // Update status in data panel
-        var dataPanel = me.mainPanel.down('#dataPanel');
-        if (dataPanel) {
-            var decodeStatus = dataPanel.down('#decodeStatus');
-            if (decodeStatus) {
-                decodeStatus.update('<span style="color: red;">Error: ' + Ext.util.Format.htmlEncode(errorMessage) + '</span>');
-            }
-        }
-        
-        Ext.Msg.alert('Decode Error', errorMessage);
-    },
-    
-    /**
-     * Test API connection with sample VIN
-     */
-    testAPI: function() {
-        var me = this;
-        var apiKey = localStorage.getItem('vininsight_apikey');
-        
-        if (!apiKey || apiKey.trim() === '') {
-            Ext.Msg.alert('API Key Required', 
-                'Please enter your auto.dev API key first.');
-            return;
-        }
-        
-        // Test with sample VIN from requirements
-        var testVIN = '3GCUDHEL3NG668790';
-        
-        Ext.Msg.wait('Testing API connection with sample VIN...', 'Testing');
-        
-        Ext.Ajax.request({
-            url: 'autodev/vin/' + encodeURIComponent(testVIN)+'?apiKey='+apiKey,
-            success: function(response) {
-                Ext.Msg.hide();
-                try {
-                    var data = Ext.decode(response.responseText);
-                    Ext.Msg.alert('API Test Successful', 
-                        'API connection successful!<br><br>' +
-                        'Sample VIN decoded successfully.<br>' +
-                        'Vehicle: ' + (data.make || 'Unknown') + ' ' + (data.model || 'Unknown'));
-                } catch (e) {
-                    Ext.Msg.alert('API Test Failed', 
-                        'Failed to parse API response. Check your API key.');
-                }
-            },
-            failure: function(response) {
-                Ext.Msg.hide();
-                Ext.Msg.alert('API Test Failed', 
-                    'API request failed. Please check:<br>' +
-                    '1. Your API key is valid<br>' +
-                    '2. You have access to VIN decode API<br>' +
-                    '3. Network connectivity');
-            }
-        });
+    destroy: function () {
+        // Останавливаем таймер обновления
+        this.stopDataRefresh();
+
+        // Вызываем родительский деструктор
+        this.callParent();
     }
 });
